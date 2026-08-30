@@ -1,10 +1,22 @@
-name: 每日抓取更新租房地图
+name: 抓取更新租房地图（手动触发）
+
+# 定时任务已于 2026-08-30 停用。
+#
+# 原因：bay123 和 chineseinsfbay 都开始封 GitHub 机房 IP，云端一条也抓不到 ——
+#   [bay123] list page 1 failed: 403 Client Error: Forbidden
+#   [cis]    响应长度 0 字符
+# 同样的 URL 从住宅网络访问都是 200（bay123 107KB / cis 119KB），
+# 所以是 IP 封锁，不是选择器失效或论坛改版。
+#
+# 定时任务留着只会每天准点失败、发一封无用的报错邮件，
+# 天天报警会让人对失败麻木，真出别的问题反而漏掉。
+#
+# 现在数据更新完全靠本机跑 ./update.sh（住宅 IP 才抓得到）。
+# 如果哪天想试试对方是否解封了，在 Actions 页面手动触发一次即可：
+# 抓到了就说明能恢复定时，还是 403 就说明照旧。
 
 on:
-  schedule:
-    # UTC 14:30 = 加州时间早上 6:30（夏令时）/ 7:30（冬令时）
-    - cron: "30 14 * * *"
-  workflow_dispatch: {}   # 允许在 Actions 页面手动触发
+  workflow_dispatch: {}   # 只保留手动触发
 
 permissions:
   contents: write

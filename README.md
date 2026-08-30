@@ -6,8 +6,11 @@
 
 **网站已上线：https://askaibay.com**
 
-数据来自两条途径：GitHub Actions 每天自动抓 bay123；chineseinsfbay 被 Cloudflare 挡在
-机房 IP 之外，需要你在自己电脑上跑一次 [`./update.sh`](#手动更新数据)（见下文）。
+**数据更新完全靠你在自己电脑上跑一次 [`./update.sh`](#手动更新数据)**（见下文）。
+
+原来的设计是云端每天自动抓 bay123、只有 chineseinsfbay 要手动。
+但 2026-08-30 起 **bay123 也开始封 GitHub 机房 IP**，云端两个来源都抓不到了，
+定时任务已停用。详见下面「为什么不能云端自动抓」。
 
 ## 仓库结构
 
@@ -21,7 +24,7 @@
 ├── docs/CNAME                   # 自定义域名 askaibay.com
 ├── state/seen.json              # 抓过但没上地图的帖子清单，避免每天重抓
 ├── state/last_run.json          # 每次运行的健康状况，CI 用它判断要不要报警
-├── .github/workflows/update.yml # 每日定时任务
+├── .github/workflows/update.yml # 抓取任务（定时已停用，只保留手动触发）
 └── requirements.txt
 ```
 
@@ -35,7 +38,7 @@
 | 网站 | https://askaibay.com |
 | GitHub Pages | Settings → Pages：`main` 分支 `/docs` 目录 |
 | 域名 | Namecheap，4 条 A 记录指向 GitHub Pages；`www` CNAME 指向主域名 |
-| 定时任务 | 每天 UTC 14:30（加州早上 6:30/7:30）自动跑，只有 bay123 能抓到 |
+| 定时任务 | **已停用**（两个论坛都封机房 IP，跑了也抓不到）。仍可在 Actions 页面手动触发，用来试探对方是否解封 |
 | 访问统计 | Google Analytics 4，在 `docs/index.html` 顶部配置 |
 
 > 域名的 MX 记录和 SPF TXT 记录是 Namecheap 的邮箱转发，跟网站无关，**不要删**。
@@ -72,6 +75,25 @@
 | `SUBMISSION_DAYS` | 60 | 投稿多少天后自动下架 |
 
 更新频率改 `.github/workflows/update.yml` 里的 cron 表达式（UTC 时间）。
+
+## 为什么不能云端自动抓
+
+两个论坛都封 GitHub Actions 所在的机房 IP。同样的 URL，两边结果完全不同：
+
+| | GitHub 机房 IP | 住宅宽带 |
+|---|---|---|
+| bay123 | `403 Forbidden`（8 页全部） | 200，107 KB |
+| chineseinsfbay | 响应 0 字节（12 页全部） | 200，119 KB |
+
+**这是 IP 封锁，不是论坛改版**——选择器和解析逻辑都没问题，从家里跑一切正常。
+所以定时任务已停用：它只会每天准点失败发一封报错邮件，天天报警会让人对失败麻木，
+真出别的问题反而漏掉。
+
+数据不会因此丢失。`scrape.py` 里有保护：某个来源整轮一条都没抓到时跳过淘汰逻辑
+（否则 30 天内会把该来源的房源悄悄删光）。但**新房源只能靠本机跑**。
+
+想试探对方是否解封：在 Actions 页面手动触发一次那个 workflow，
+抓到了说明可以恢复定时，还是 403 就说明照旧。
 
 ## 手动更新数据
 
@@ -113,7 +135,8 @@ done: 457 points on map | fetched 3 new, reused 255, failed 0, ...
 ### 多久跑一次
 
 想起来就跑，**没有硬性要求**。不跑也不会出问题：已有房源不会因为没更新而消失，
-云端每天还会自动更新 bay123 的部分。如果你自己正在找房，隔一两天跑一次比较合适；
+**注意：现在没有云端自动更新了，不跑就不会有新房源。**
+如果你自己正在找房，隔一两天跑一次比较合适；
 只是挂着给别人用，一周跑一两次也够。
 
 ### 可能遇到的情况
