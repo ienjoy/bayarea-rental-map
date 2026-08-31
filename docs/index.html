@@ -2,517 +2,62 @@
 <html lang="zh">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>湾区租房地图</title>
-<!-- Google Analytics 4（媒体资源 askaibay）。换 ID 改下面一行即可；ID 不合法或在 localhost 打开时自动不上报 -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>askaibay · 湾区地图</title>
+<meta name="description" content="湾区租房地图与湾区零工地图。">
 <script>
   window.GA_ID = 'G-N9KT8B9DRX';
-  // 房东投稿的 Google 表单地址；留空则页面上不显示投稿入口
-  // 房东投稿：表单直接做在本页，提交时发给 Google 表单的接收地址。
-  // 这两项由 tools/setup_form.gs 运行后打印出来，填上才会出现投稿按钮。
-  window.FORM_ACTION = 'https://docs.google.com/forms/d/e/1FAIpQLSeOlYf3EuPfUrq2ztHBV9QZT6TPLEN-bziNkvLjxemIE8M3uA/formResponse';
-  window.FORM_ENTRIES = {
-    title:   'entry.1997254416',
-    price:   'entry.1662377209',
-    city:    'entry.558954830',
-    zip:     'entry.2113815971',
-    kind:    'entry.752520753',
-    contact: 'entry.1817878607',
-    note:    'entry.1900981333',
-    link:    'entry.870211380',
-    agree:   'entry.881140633'
-  };
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
-  // 没填 ID、或者在本地 localhost 打开时，不加载也不上报
-  window.TRACK_ON = /^G-[A-Z0-9]{6,}$/.test(GA_ID) && location.hostname !== 'localhost';
-  if (TRACK_ON){
-    const g = document.createElement('script');
-    g.async = true; g.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA_ID;
-    document.head.appendChild(g);
-    gtag('js', new Date());
-    gtag('config', GA_ID);
+  if (/^G-[A-Z0-9]{6,}$/.test(GA_ID) && location.hostname !== 'localhost'){
+    const g=document.createElement('script');
+    g.async=true; g.src='https://www.googletagmanager.com/gtag/js?id='+GA_ID;
+    document.head.appendChild(g); gtag('js',new Date()); gtag('config',GA_ID);
   }
-  // 统一的埋点入口：没开统计时静默丢弃
-  function track(name, params){ if (window.TRACK_ON) gtag('event', name, params || {}); }
 </script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
-  html,body{margin:0;height:100%;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
-  /* iOS Safari 的地址栏会伸缩，用 dvh 才能真正占满可见区域 */
-  @supports (height: 100dvh){ html,body{height:100dvh} }
-  #map{position:absolute;top:0;bottom:0;left:0;right:0}
-  .panel{position:absolute;top:10px;right:10px;z-index:1000;background:#fff;border-radius:10px;
-    box-shadow:0 2px 10px rgba(0,0,0,.25);padding:12px 14px;font-size:13px;max-width:240px}
-  .panel h1{font-size:15px;margin:0 0 3px}
-  .panel .nav{display:inline-block;font-size:11.5px;color:#1a6fd4;text-decoration:none;margin-bottom:8px}
-  .panel .nav:hover{text-decoration:underline}
-  .panel .note{color:#777;font-size:11px;margin-top:8px;line-height:1.5}
-  .row{display:flex;align-items:center;gap:6px;margin:3px 0;cursor:pointer;user-select:none}
-  .dot{width:12px;height:12px;border-radius:50%;display:inline-block;border:1.5px solid rgba(0,0,0,.35);flex:0 0 auto}
-  .cnt{color:#999;margin-left:auto}
-  .popup-title{font-weight:600;margin-bottom:4px;line-height:1.4}
-  .popup-meta{color:#555;font-size:12px;line-height:1.6}
-  .popup-meta a{color:#1a6fd4}
-  label.src{margin-right:10px;white-space:nowrap}
-  #poll{margin-top:8px;border-top:1px solid #eee;padding-top:8px;color:#888;font-size:11px}
-  #poll .opts{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
-  #poll button{font:inherit;font-size:11px;color:#555;background:#f4f5f7;border:1px solid #e2e4e8;
-    border-radius:11px;padding:3px 9px;cursor:pointer}
-  #poll button:hover{background:#e8eaee;color:#222}
-  #poll.done{color:#aaa}
-  #submit-box{margin-top:8px;border-top:1px solid #eee;padding-top:9px}
-  #submit-link{display:block;text-align:center;background:#1a6fd4;color:#fff;
-    text-decoration:none;border-radius:8px;padding:8px 10px;font-size:13px;font-weight:600}
-  #submit-link:hover{background:#155cb0}
-  #submit-box .hint{color:#999;font-size:11px;margin-top:5px;line-height:1.5;text-align:center}
-  .popup-owner{display:inline-block;background:#eaf2fd;color:#1a5fb4;border:1px solid #c7ddf7;
-    border-radius:4px;padding:1px 6px;font-size:11px;margin-bottom:5px}
-  .popup-contact{font-weight:600;color:#222}
-
-  /* ---- 页面内的投稿表单 ---- */
-  #mask{display:none;position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.45)}
-  #mask.on{display:block}
-  #form-card{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-    background:#fff;border-radius:12px;width:min(440px,calc(100vw - 28px));
-    max-height:min(88vh,760px);overflow-y:auto;-webkit-overflow-scrolling:touch;
-    padding:20px 22px calc(20px + env(safe-area-inset-bottom));
-    box-shadow:0 10px 40px rgba(0,0,0,.3)}
-  #form-card h2{margin:0 0 4px;font-size:17px}
-  #form-card .lead{color:#777;font-size:12px;line-height:1.6;margin-bottom:14px}
-  #form-card label{display:block;margin:11px 0 4px;font-size:13px;color:#333;font-weight:600}
-  #form-card label .req{color:#d93636;font-weight:400}
-  #form-card .tip{font-weight:400;color:#999;font-size:11px;margin-left:4px}
-  #form-card input[type=text],#form-card textarea,#form-card select{
-    width:100%;box-sizing:border-box;font:inherit;font-size:14px;
-    border:1px solid #d6d9de;border-radius:7px;padding:9px 10px;background:#fff}
-  #form-card input:focus,#form-card textarea:focus,#form-card select:focus{
-    outline:none;border-color:#1a6fd4;box-shadow:0 0 0 3px rgba(26,111,212,.14)}
-  #form-card textarea{min-height:72px;resize:vertical}
-  #form-card .warn{background:#fff8e6;border:1px solid #f2e0b5;border-radius:7px;
-    padding:9px 11px;font-size:12px;color:#7a5c17;line-height:1.6;margin:13px 0 4px}
-  #agree-row{display:flex;gap:8px;align-items:flex-start;margin:12px 0 0;font-size:12px;color:#444}
-  #agree-row input{width:17px;height:17px;flex:0 0 auto;margin-top:1px}
-  #form-actions{display:flex;gap:9px;margin-top:16px}
-  #form-actions button{flex:1;font:inherit;font-size:14px;border-radius:8px;
-    padding:11px;cursor:pointer;border:1px solid #d6d9de;background:#f4f5f7;color:#333}
-  #form-actions button#do-submit{background:#1a6fd4;border-color:#1a6fd4;color:#fff;font-weight:600}
-  #form-actions button#do-submit:disabled{background:#9bbbe6;border-color:#9bbbe6;cursor:default}
-  #form-err{color:#d93636;font-size:12px;margin-top:9px;min-height:1em;line-height:1.5}
-  #form-done{display:none;text-align:center;padding:14px 4px}
-  #form-done .big{font-size:34px;margin-bottom:8px}
-  #form-done p{color:#555;font-size:13px;line-height:1.7;margin:0 0 16px}
-  .leaflet-popup-content{margin:10px 14px;max-width:240px}
-
-  /* 抽屉的关闭按钮，只在窄屏出现 */
-  #close{display:none;position:absolute;top:10px;right:12px;
-    width:34px;height:34px;border:0;background:transparent;
-    font-size:26px;line-height:1;color:#999;cursor:pointer;-webkit-tap-highlight-color:transparent}
-
-  /* 唤出筛选的悬浮按钮，只在窄屏出现 */
-  #fab{display:none;position:fixed;left:50%;transform:translateX(-50%);
-    bottom:calc(14px + env(safe-area-inset-bottom));z-index:1200;
-    background:#fff;border:1px solid #dcdfe4;border-radius:22px;
-    box-shadow:0 3px 14px rgba(0,0,0,.28);padding:10px 18px;
-    font:inherit;font-size:14px;color:#222;cursor:pointer;-webkit-tap-highlight-color:transparent}
-  #fab b{color:#1a6fd4}
-
-  /* ---- 窄屏（手机）---- */
-  @media (max-width: 700px){
-    #fab{display:block}
-    .panel{
-      top:auto;left:0;right:0;bottom:0;max-width:none;
-      border-radius:16px 16px 0 0;padding:14px 18px calc(16px + env(safe-area-inset-bottom));
-      box-shadow:0 -3px 18px rgba(0,0,0,.3);font-size:15px;
-      max-height:72vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
-      transform:translateY(102%);transition:transform .22s ease;
-    }
-    .panel.open{transform:translateY(0)}
-    .panel h1{font-size:17px;margin-bottom:4px;padding-right:34px}
-    .panel .nav{font-size:13.5px;margin-bottom:10px;padding:4px 0}
-    #close{display:block}
-    /* 手指点得到：加大行高和勾选框 */
-    .row{margin:0;padding:9px 0;gap:9px}
-    .row input[type=checkbox]{width:19px;height:19px}
-    .dot{width:15px;height:15px}
-    label.src{display:inline-flex;align-items:center;gap:6px;margin:6px 14px 6px 0}
-    label.src input{width:19px;height:19px}
-    #days{font-size:15px;padding:5px 8px}
-    #poll button{font-size:13px;padding:7px 13px}
-    #submit-link{font-size:15px;padding:11px}
-    #poll .opts{gap:7px}
-    .panel .note{font-size:12px}
-    .cnt{font-size:14px;color:#8a8f98}
-    /* 弹窗在小屏上给足宽度，"查看原帖"要好点 */
-    .leaflet-popup-content{margin:12px 14px;max-width:min(74vw,300px);font-size:14px}
-    .popup-meta{font-size:13px}
-    .popup-meta a{display:inline-block;padding:6px 0;font-size:14px}
-    .leaflet-control-zoom{display:none}   /* 手机双指缩放即可，省地方 */
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%}
+  body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#1a1a1a;
+    background:#f7f8fa;display:flex;align-items:center;justify-content:center;
+    padding:32px 20px calc(32px + env(safe-area-inset-bottom))}
+  main{width:100%;max-width:560px}
+  h1{font-size:26px;margin:0 0 6px;letter-spacing:-.01em}
+  .lead{color:#8a8f98;font-size:14px;margin:0 0 26px;line-height:1.6}
+  a.card{display:block;text-decoration:none;color:inherit;background:#fff;
+    border:1px solid #e6e8ec;border-radius:14px;padding:20px 22px;margin-bottom:14px;
+    box-shadow:0 1px 3px rgba(0,0,0,.05);transition:border-color .15s,box-shadow .15s,transform .15s}
+  a.card:hover{border-color:#1a6fd4;box-shadow:0 4px 16px rgba(26,111,212,.14);transform:translateY(-1px)}
+  a.card h2{font-size:18px;margin:0 0 5px;color:#1a6fd4}
+  a.card p{margin:0;color:#6b7078;font-size:13.5px;line-height:1.65}
+  a.card .go{display:inline-block;margin-top:10px;font-size:13px;color:#1a6fd4;font-weight:600}
+  footer{color:#a3a7ae;font-size:12px;line-height:1.7;margin-top:22px}
+  @media (max-width:520px){
+    body{padding:24px 16px calc(24px + env(safe-area-inset-bottom))}
+    h1{font-size:22px}
+    a.card{padding:18px}
+    a.card h2{font-size:17px}
   }
-
 </style>
 </head>
 <body>
-<div id="map"></div>
-<button id="fab">筛选 · <b id="fab-count">…</b> 条房源</button>
+<main>
+  <h1>askaibay</h1>
+  <p class="lead">湾区的两张地图。手机上直接打开就能用。</p>
 
-<div id="mask">
-  <div id="form-card">
-    <div id="form-body">
-      <h2>免费发布房源</h2>
-      <div class="lead">填完提交，我们看过之后显示在地图上，通常一天内。不用注册。</div>
+  <a class="card" href="rental.html">
+    <h2>湾区租房地图</h2>
+    <p>bay123、chineseinsfbay 两个论坛的房源，按租金分档标在地图上，点圆点看详情和原帖。房东也可以免费自己发布。</p>
+    <span class="go">打开地图 →</span>
+  </a>
 
-      <label>房源标题 <span class="req">*</span></label>
-      <input type="text" id="f-title" maxlength="60"
-             placeholder="例：Fremont 主卧带独卫，近 Ohlone College">
+  <a class="card" href="gigs.html">
+    <h2>湾区零工地图</h2>
+    <p>Field Nation 上的现场技术工单：网络、弱电布线、监控门禁、POS、音视频等，标出位置、报酬、工时和申请人数，点进去可跳原工单。</p>
+    <span class="go">打开地图 →</span>
+  </a>
 
-      <label>每月租金 <span class="tip">填数字，面议可留空</span></label>
-      <input type="text" id="f-price" inputmode="numeric" placeholder="1800">
-
-      <label>城市 / 地区 <span class="req">*</span></label>
-      <input type="text" id="f-city" placeholder="例：Fremont、屋仑、San Jose">
-
-      <label>邮编 <span class="tip">填了地图上位置更准</span></label>
-      <input type="text" id="f-zip" inputmode="numeric" maxlength="5" placeholder="94539">
-
-      <label>出租类型</label>
-      <select id="f-kind">
-        <option value="">不限 / 未填</option>
-        <option>整租</option><option>单间</option><option>合租</option>
-      </select>
-
-      <label>联系方式 <span class="req">*</span></label>
-      <input type="text" id="f-contact" placeholder="微信号 / 邮箱 / 电话">
-
-      <div class="warn">⚠️ 你填的内容<b>全部会公开显示在地图上</b>，包括联系方式，任何人都能看到。
-        建议填微信号；不想公开手机号就别填手机号。</div>
-
-      <label>房源说明 <span class="tip">地图上显示前 120 字</span></label>
-      <textarea id="f-note" maxlength="500"
-                placeholder="位置、交通、家具、入住要求等"></textarea>
-
-      <label>详情链接 <span class="tip">原帖或相册，没有可不填</span></label>
-      <input type="text" id="f-link" placeholder="https://">
-
-      <div id="agree-row">
-        <input type="checkbox" id="f-agree">
-        <label for="f-agree" style="margin:0;font-weight:400;font-size:12px">
-          我确认以上信息（含联系方式）可以公开显示在地图上</label>
-      </div>
-
-      <div id="form-err"></div>
-      <div id="form-actions">
-        <button id="do-cancel" type="button">取消</button>
-        <button id="do-submit" type="button">提交</button>
-      </div>
-    </div>
-
-    <div id="form-done">
-      <div class="big">✅</div>
-      <h2>收到了，谢谢！</h2>
-      <p>我们看过之后会显示在地图上，通常一天内。<br>房子租出去了记得告诉我们下架。</p>
-      <div id="form-actions"><button id="do-close" type="button">关闭</button></div>
-    </div>
-  </div>
-</div>
-<iframe name="form-sink" id="form-sink" style="display:none" title="submit target"></iframe>
-<div class="panel" id="panel">
-  <button id="close" aria-label="关闭">&times;</button>
-  <h1>湾区租房地图</h1>
-  <a class="nav" href="gigs.html">换到湾区零工地图：现场技术工单 →</a>
-  <div id="bands"></div>
-  <div style="margin-top:8px;border-top:1px solid #eee;padding-top:8px">
-    <label class="src"><input type="checkbox" id="src-bay123" checked> bay123</label>
-    <label class="src"><input type="checkbox" id="src-cis" checked> chineseinsfbay</label>
-    <label class="src" id="src-owner-wrap" style="display:none">
-      <input type="checkbox" id="src-owner" checked> 房东直发</label>
-  </div>
-  <div style="margin-top:8px;border-top:1px solid #eee;padding-top:8px">
-    发帖时间
-    <select id="days" style="font-size:12px;margin-left:4px">
-      <option value="0">全部</option>
-      <option value="7">最近 7 天</option>
-      <option value="14">最近 14 天</option>
-      <option value="30">最近 30 天</option>
-    </select>
-  </div>
-  <div id="poll">
-    你是？<span style="color:#bbb">（点一下就好，帮我知道谁在用）</span>
-    <div class="opts">
-      <button data-role="找房">找房</button>
-      <button data-role="出租">出租</button>
-      <button data-role="中介">中介</button>
-      <button data-role="随便看看">随便看看</button>
-    </div>
-  </div>
-  <div id="submit-box" style="display:none">
-    <a id="submit-link" href="#">我有房子出租 →</a>
-    <div class="hint">免费发布，审核后显示在地图上。<br>你填写的联系方式会公开显示，请自行斟酌。</div>
-  </div>
-  <div class="note">共 <b id="total"></b> 条房源。位置按帖子中的邮编/城市定位（近似位置，同区房源已散开），点击圆点看详情和原帖链接。<br>数据更新于：<b id="updated">加载中…</b></div>
-</div>
-<script>
-const map = L.map('map').setView([37.55, -122.1], 10);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 18, attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
-
-const BANDS = [
-  {key:'b1', label:'$1000 以下',   color:'#2e9e4f', test:v=>v!==null&&v!==undefined&&v<1000},
-  {key:'b2', label:'$1000–1500', color:'#2b7de0', test:v=>v>=1000&&v<1500},
-  {key:'b3', label:'$1500–2500', color:'#f29c11', test:v=>v>=1500&&v<2500},
-  {key:'b4', label:'$2500 以上',  color:'#d93636', test:v=>v>=2500},
-  {key:'b0', label:'未标价',       color:'#8a8f98', test:v=>v===null||v===undefined},
-];
-function bandOf(v){ return BANDS.find(b=>b.test(v)) || BANDS[4]; }
-
-const state = {bands:new Set(BANDS.map(b=>b.key)), srcs:new Set(['bay123','cis','owner']), days:0};
-const DOT_R = window.matchMedia('(max-width: 700px)').matches ? 8 : 6;
-let markers = [];
-let ownerSeen = false;
-
-// 发帖日期是 ISO 字符串（YYYY-MM-DD），直接按字符串比大小即可
-function cutoffISO(days){
-  const t = new Date(Date.now() - days*86400000);
-  return t.toISOString().slice(0,10);
-}
-function fresh(m){
-  if (!state.days) return true;
-  return m._date && m._date >= cutoffISO(state.days);
-}
-
-function refresh(){
-  let shown = 0;
-  for (const m of markers){
-    const on = state.bands.has(m._band) && state.srcs.has(m._src) && fresh(m);
-    if (on && !map.hasLayer(m)) m.addTo(map);
-    if (!on && map.hasLayer(m)) map.removeLayer(m);
-    if (on) shown++;
-  }
-  document.getElementById('total').textContent = shown;
-  document.getElementById('fab-count').textContent = shown;
-  for (const b of BANDS){
-    const n = markers.filter(m=>m._band===b.key && state.srcs.has(m._src) && fresh(m)).length;
-    const el = document.getElementById('cnt-'+b.key);
-    if (el) el.textContent = n;
-  }
-}
-
-const bandsDiv = document.getElementById('bands');
-for (const b of BANDS){
-  const row = document.createElement('div');
-  row.className = 'row';
-  row.innerHTML = '<input type="checkbox" checked id="cb-'+b.key+'">'+
-    '<span class="dot" style="background:'+b.color+'"></span>'+b.label+
-    '<span class="cnt" id="cnt-'+b.key+'"></span>';
-  row.querySelector('input').addEventListener('change', e=>{
-    e.target.checked ? state.bands.add(b.key) : state.bands.delete(b.key); refresh();
-    track('filter_price', {band: b.label, checked: e.target.checked});
-  });
-  bandsDiv.appendChild(row);
-}
-for (const s of ['bay123','cis','owner']){
-  document.getElementById('src-'+s).addEventListener('change', e=>{
-    e.target.checked ? state.srcs.add(s) : state.srcs.delete(s); refresh();
-    track('filter_source', {source: s, checked: e.target.checked});
-  });
-}
-document.getElementById('days').addEventListener('change', e=>{
-  state.days = parseInt(e.target.value, 10) || 0; refresh();
-  track('filter_days', {days: state.days || 'all'});
-});
-
-// 点"查看原帖"是最强的意图信号：说明这个人真的在联系房东
-document.addEventListener('click', e=>{
-  const a = e.target.closest && e.target.closest('a.orig');
-  if (a) track('click_original', {
-    city: a.dataset.city || '未知',
-    price: parseInt(a.dataset.price, 10) || 0,
-    source: a.dataset.source || ''
-  });
-});
-
-// 身份小调查：答过一次就不再出现（存在本机浏览器里，不会上传任何个人信息）
-(function(){
-  const box = document.getElementById('poll');
-  let answered = null;
-  try { answered = localStorage.getItem('role'); } catch(e) {}
-  if (answered){ box.remove(); return; }
-  box.querySelector('.opts').addEventListener('click', e=>{
-    const btn = e.target.closest('button');
-    if (!btn) return;
-    const role = btn.dataset.role;
-    try { localStorage.setItem('role', role); } catch(e) {}
-    track('survey_role', {role: role});
-    if (window.TRACK_ON) gtag('set', 'user_properties', {visitor_role: role});
-    box.className = 'done';
-    box.textContent = '谢谢！';
-    setTimeout(()=>box.remove(), 1600);
-  });
-})();
-
-// 房东投稿：表单就在本页，提交时把数据 POST 给 Google 表单的接收地址。
-// 用隐藏 iframe 承接响应——Google 那个地址不带 CORS 头，fetch 读不到结果，
-// iframe 提交则完全不受影响，还能靠它的 load 事件知道提交完成了。
-(function(){
-  const E = window.FORM_ENTRIES || {};
-  if (!window.FORM_ACTION || !E.title) return;   // 没配好就不显示入口
-
-  const box = document.getElementById('submit-box');
-  const trigger = document.getElementById('submit-link');
-  const mask = document.getElementById('mask');
-  const card = document.getElementById('form-card');
-  const errBox = document.getElementById('form-err');
-  const btn = document.getElementById('do-submit');
-  const sink = document.getElementById('form-sink');
-  box.style.display = 'block';
-
-  const F = {
-    title:  document.getElementById('f-title'),
-    price:  document.getElementById('f-price'),
-    city:   document.getElementById('f-city'),
-    zip:    document.getElementById('f-zip'),
-    kind:   document.getElementById('f-kind'),
-    contact:document.getElementById('f-contact'),
-    note:   document.getElementById('f-note'),
-    link:   document.getElementById('f-link'),
-  };
-
-  function open(e){
-    if (e) e.preventDefault();
-    mask.classList.add('on');
-    document.getElementById('form-body').style.display = '';
-    document.getElementById('form-done').style.display = 'none';
-    track('open_submit_form');
-  }
-  function close(){ mask.classList.remove('on'); }
-
-  trigger.addEventListener('click', open);
-  document.getElementById('do-cancel').addEventListener('click', close);
-  document.getElementById('do-close').addEventListener('click', close);
-  mask.addEventListener('click', e => { if (e.target === mask) close(); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
-
-  function check(){
-    if (!F.title.value.trim()) return ['房源标题要填一下', F.title];
-    if (!F.city.value.trim())  return ['城市要填一下，不然地图上放不了', F.city];
-    if (!F.contact.value.trim()) return ['联系方式要填一下，不然看房的人找不到你', F.contact];
-    const z = F.zip.value.trim();
-    if (z && !/^9[45]\d{3}$/.test(z)) return ['邮编看起来不像湾区的五位邮编', F.zip];
-    const p = F.price.value.trim();
-    if (p && !/^\$?\s*\d{3,5}$/.test(p)) return ['租金请填数字，比如 1800', F.price];
-    if (!document.getElementById('f-agree').checked)
-      return ['请勾选确认——你填的内容会公开显示', null];
-    return null;
-  }
-
-  btn.addEventListener('click', () => {
-    const bad = check();
-    errBox.textContent = '';
-    if (bad){ errBox.textContent = bad[0]; if (bad[1]) bad[1].focus(); return; }
-
-    // 用一个真的 <form> 提交到隐藏 iframe，避开跨域限制
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = window.FORM_ACTION;
-    form.target = 'form-sink';
-    form.style.display = 'none';
-    const put = (name, value) => {
-      if (!name) return;
-      const i = document.createElement('input');
-      i.type = 'hidden'; i.name = name; i.value = value;
-      form.appendChild(i);
-    };
-    for (const k in F) put(E[k], F[k].value.trim());
-    put(E.agree, '我确认');
-    document.body.appendChild(form);
-
-    btn.disabled = true; btn.textContent = '提交中…';
-    let done = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      btn.disabled = false; btn.textContent = '提交';
-      document.getElementById('form-body').style.display = 'none';
-      document.getElementById('form-done').style.display = 'block';
-      card.scrollTop = 0;
-      for (const k in F) F[k].value = '';
-      document.getElementById('f-agree').checked = false;
-      form.remove();
-      track('submit_listing', {city: F.city.value || ''});
-    };
-    sink.addEventListener('load', finish, {once:true});
-    setTimeout(finish, 4000);   // iframe 的 load 偶尔不触发，兜底
-    form.submit();
-  });
-})();
-
-// 手机上把筛选面板收成底部抽屉：点悬浮按钮拉起，点关闭/点地图收回
-(function(){
-  const panel = document.getElementById('panel');
-  const fab = document.getElementById('fab');
-  const isPhone = () => window.matchMedia('(max-width: 700px)').matches;
-
-  function open(){ panel.classList.add('open'); fab.style.display = 'none'; }
-  function close(){ panel.classList.remove('open'); if (isPhone()) fab.style.display = 'block'; }
-
-  fab.addEventListener('click', open);
-  document.getElementById('close').addEventListener('click', close);
-  // 点地图任意处收起抽屉，手指不用去够那个小叉
-  map.on('click', close);
-  map.on('movestart', close);
-  // 转屏或从手机切到桌面尺寸时，恢复成该尺寸的正常状态
-  window.addEventListener('resize', () => {
-    if (!isPhone()){ panel.classList.remove('open'); fab.style.display = 'none'; }
-    else if (!panel.classList.contains('open')) fab.style.display = 'block';
-  });
-})();
-
-fetch('data.json?t=' + Date.now())
-  .then(r => r.json())
-  .then(data => {
-    document.getElementById('updated').textContent = data.updated || '未知';
-    for (const p of data.points) {
-      const b = bandOf(p.pv);
-      const owner = p.s === 'owner';
-      const m = L.circleMarker([p.lat, p.lng], {
-        // 手机上圆点大一点，手指才点得准；房东直发的用深蓝粗描边区分
-        radius: owner ? DOT_R + 1 : DOT_R,
-        color: owner ? '#1a5fb4' : 'rgba(0,0,0,.45)',
-        weight: owner ? 2.5 : 1,
-        fillColor: b.color, fillOpacity:.85
-      });
-      if (owner) ownerSeen = true;
-      const srcLabel = p.s === 'cis' ? 'chineseinsfbay' : (owner ? '房东直发' : p.s);
-      const esc = v => String(v == null ? '' : v).replace(/[<>&"]/g,
-        c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
-      let html = (owner ? '<div class="popup-owner">房东直发</div>' : '') +
-        '<div class="popup-title">'+esc(p.t)+'</div>'+
-        '<div class="popup-meta">'+
-        '租金：'+esc(p.p || '未标价')+(p.k ? ' · '+esc(p.k) : '')+'<br>'+
-        '位置：'+esc(p.c||'')+(p.z? (p.c?' · ':'')+esc(p.z) : '')+
-        (p.lv==='city'?'（城市级近似）':'（邮编级近似）')+'<br>';
-      if (owner && p.n) html += esc(p.n)+'<br>';
-      html += (owner ? '发布' : '发布')+'：'+esc(p.d||'')+' · 来源：'+esc(srcLabel)+'<br>';
-      if (owner && p.ct) html += '联系：<span class="popup-contact">'+esc(p.ct)+'</span><br>'+
-        '<span style="color:#999;font-size:11px">房东自行提交，本站未核实，请当面看房、勿提前付款</span><br>';
-      if (p.u) html += '<a href="'+esc(p.u)+'" target="_blank" rel="noopener" class="orig"'+
-        ' data-city="'+esc(p.c||'')+'" data-price="'+(p.pv||0)+'" data-source="'+esc(p.s)+'">'+
-        (owner ? '查看详情 →' : '查看原帖 →')+'</a>';
-      html += '</div>';
-      m.bindPopup(html);
-      m._band = b.key; m._src = p.s; m._date = p.d || '';
-      m.on('popupopen', () => track('open_listing', {
-        city: p.c || '未知', zip: p.z || '', price_band: b.label,
-        price: p.pv || 0, source: p.s
-      }));
-      markers.push(m);
-    }
-    if (ownerSeen) document.getElementById('src-owner-wrap').style.display = '';
-    refresh();
-  })
-  .catch(e => { document.getElementById('updated').textContent = '数据加载失败'; });
-</script>
+  <footer>数据仅供参考，联系房东或接单前请自行核实。</footer>
+</main>
 </body>
 </html>

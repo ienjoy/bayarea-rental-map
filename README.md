@@ -19,7 +19,9 @@
 ├── tools/setup_form.gs          # 一键建房东投稿表单的 Apps Script（只跑一次）
 ├── scraper/scrape.py            # 抓取脚本：抓两个论坛 → 定位 → 合并进 docs/data.json
 ├── scraper/reparse.py           # 一次性工具：提取规则变好后回填老点位（平时不用跑）
-├── docs/index.html              # 地图页面（GitHub Pages 发布这个目录）
+├── docs/index.html              # 首页：两张地图的入口（GitHub Pages 发布这个目录）
+├── docs/rental.html             # 租房地图
+├── docs/gigs.html               # 零工地图（数据 gigs.json + gigs-detail.json）
 ├── docs/data.json               # 房源数据（脚本自动维护，含 457 条已验证数据）
 ├── docs/CNAME                   # 自定义域名 askaibay.com
 ├── state/seen.json              # 抓过但没上地图的帖子清单，避免每天重抓
@@ -39,7 +41,7 @@
 | GitHub Pages | Settings → Pages：`main` 分支 `/docs` 目录 |
 | 域名 | Namecheap，4 条 A 记录指向 GitHub Pages；`www` CNAME 指向主域名 |
 | 定时任务 | **已停用**（两个论坛都封机房 IP，跑了也抓不到）。仍可在 Actions 页面手动触发，用来试探对方是否解封 |
-| 访问统计 | Google Analytics 4，在 `docs/index.html` 顶部配置 |
+| 访问统计 | Google Analytics 4，在 `docs/rental.html` / `docs/gigs.html` / `docs/index.html` 顶部配置（同一个 ID） |
 
 > 域名的 MX 记录和 SPF TXT 记录是 Namecheap 的邮箱转发，跟网站无关，**不要删**。
 
@@ -220,7 +222,7 @@ window.FORM_ENTRIES = { "title": "entry.123456", ... };
 ```
 
 把这一段、加上第二步复制的 **CSV 网址**，一起发给 Claude。它们分别填进
-`docs/index.html` 顶部和 `scraper/scrape.py` 的 `SUBMISSIONS_CSV`，
+`docs/rental.html` 顶部和 `scraper/scrape.py` 的 `SUBMISSIONS_CSV`，
 地图上就会出现"我有房子出租"按钮，点开是页面内的填写表单。
 
 ### 页面内表单是怎么工作的
