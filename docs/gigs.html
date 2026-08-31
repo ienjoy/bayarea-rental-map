@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>湾区零工地图 · 现场技术工单</title>
+<meta name="description" content="Field Nation 现场技术零工的地图视图：网络、弱电布线、监控门禁、POS、音视频等工单的位置、报酬与工时。">
+<!-- Google Analytics 4（媒体资源 askaibay），与租房地图同一个 ID -->
+<script>
+  window.GA_ID = 'G-N9KT8B9DRX';
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  window.TRACK_ON = /^G-[A-Z0-9]{6,}$/.test(GA_ID) && location.hostname !== 'localhost';
+  if (TRACK_ON){
+    const g = document.createElement('script');
+    g.async = true; g.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA_ID;
+    document.head.appendChild(g);
+    gtag('js', new Date()); gtag('config', GA_ID);
+  }
+  function track(name, params){ if (window.TRACK_ON) gtag('event', name, params || {}); }
+</script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  html,body{margin:0;height:100%;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    color:#1a1a1a}
+  @supports (height: 100dvh){ html,body{height:100dvh} }
+  #map{position:absolute;top:0;bottom:0;left:0;right:0}
+
+  /* ---- 面板：桌面端是右上角一张小卡片，随时可以收起，不挡地图 ---- */
+  .panel{box-sizing:border-box;position:absolute;top:10px;right:10px;z-index:1000;background:#fff;border-radius:10px;
+    box-shadow:0 2px 10px rgba(0,0,0,.25);padding:12px 14px;font-size:13px;
+    width:296px;max-height:min(calc(100% - 20px),660px);overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .panel.hide{display:none}
+  .panel h1{font-size:15px;margin:0 0 3px;padding-right:30px}
+  .nav{display:inline-block;font-size:11.5px;color:#1a6fd4;text-decoration:none;margin-bottom:9px}
+  .nav:hover{text-decoration:underline}
+  .kpis{display:flex;gap:14px;margin:0 0 9px;padding-bottom:9px;border-bottom:1px solid #eee}
+  .kpi b{display:block;font-size:19px;font-weight:600;line-height:1.15;
+    font-variant-numeric:tabular-nums}
+  .kpi span{font-size:10.5px;color:#8a8f98}
+  .tabs{display:flex;gap:6px;margin-bottom:10px}
+  .tabs button{flex:1;font:inherit;font-size:12.5px;padding:5px;border:1px solid #e2e4e8;
+    border-radius:7px;background:#f4f5f7;color:#555;cursor:pointer}
+  .tabs button.on{background:#1a6fd4;border-color:#1a6fd4;color:#fff;font-weight:600}
+  h2{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:#9a9ea6;
+    margin:10px 0 5px;font-weight:600}
+  input[type=search]{width:100%;box-sizing:border-box;font:inherit;font-size:13px;
+    border:1px solid #d6d9de;border-radius:7px;padding:7px 9px}
+  input[type=search]:focus{outline:none;border-color:#1a6fd4;box-shadow:0 0 0 3px rgba(26,111,212,.14)}
+  input[type=range]{width:100%;accent-color:#1a6fd4;margin:3px 0 0}
+  select{width:100%;font:inherit;font-size:12.5px;padding:5px 7px;border:1px solid #d6d9de;
+    border-radius:7px;background:#fff}
+  .slabel{display:flex;justify-content:space-between;font-size:12px;color:#555}
+  .slabel b{font-variant-numeric:tabular-nums;color:#222}
+  .chips{display:flex;flex-wrap:wrap;gap:5px}
+  .chips button{font:inherit;font-size:11.5px;padding:4px 9px;border:1px solid #e2e4e8;
+    border-radius:12px;background:#f4f5f7;color:#666;cursor:pointer}
+  .chips button.on{background:#1a6fd4;border-color:#1a6fd4;color:#fff}
+  #tows{max-height:132px;overflow-y:auto;-webkit-overflow-scrolling:touch;
+    border:1px solid #eee;border-radius:7px;padding:5px 8px}
+  .row{display:flex;align-items:center;gap:7px;margin:0;padding:3px 0;cursor:pointer;
+    user-select:none;font-size:12.5px}
+  .row .nm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cnt{color:#a3a7ae;font-variant-numeric:tabular-nums;font-size:11.5px}
+  .dot{width:11px;height:11px;border-radius:50%;flex:0 0 auto}
+  .btnrow{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+  .btnrow button{font:inherit;font-size:11.5px;padding:4px 9px;border:1px solid #e2e4e8;
+    border-radius:7px;background:#f4f5f7;color:#555;cursor:pointer}
+  #legend{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center}
+  .legrow{display:flex;align-items:center;gap:5px;font-size:11.5px;color:#555;white-space:nowrap}
+  .note{color:#8a8f98;font-size:11px;margin-top:11px;line-height:1.6;
+    border-top:1px solid #eee;padding-top:9px}
+  .note b{color:#666}
+
+  /* ---- 结果列表（面板内的第二个标签页）---- */
+  #tab-l{display:none}
+  #list{margin:0 -14px;border-top:1px solid #eee}
+  .item{padding:9px 14px;border-bottom:1px solid #f0f0ee;cursor:pointer;display:flex;gap:8px}
+  .item:active{background:#f4f5f7}
+  .item .t{font-size:12.5px;font-weight:500;line-height:1.35;margin:0 0 2px}
+  .item .m{font-size:11px;color:#8a8f98;line-height:1.5;margin:0}
+  .item .p{font-weight:600;color:#222;font-variant-numeric:tabular-nums}
+  .more{padding:9px 14px;font-size:11px;color:#9a9ea6;background:#fafaf9}
+
+  /* ---- 弹窗 ---- */
+  .leaflet-popup-content{margin:11px 13px;width:300px!important;
+    max-height:min(52vh,440px);overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .pop h3{font-size:13.5px;margin:0 0 6px;line-height:1.4}
+  .pop .bgs{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:7px}
+  .pop .bg{font-size:10.5px;padding:2px 6px;border-radius:4px;background:#f1f2f4;color:#666}
+  .pop .bg.w{background:#fff5e2;color:#9a6a09}
+  .pop table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:4px}
+  .pop table td{padding:2px 0;color:#666}
+  .pop table td.v{text-align:right;color:#1a1a1a;font-weight:500;font-variant-numeric:tabular-nums}
+  .pop dt{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#9a9ea6;
+    margin:9px 0 3px;font-weight:600}
+  .pop dd{margin:0;font-size:12px;color:#555;line-height:1.55}
+  .pop dd.sc{max-height:120px;overflow-y:auto;-webkit-overflow-scrolling:touch;
+    white-space:pre-wrap;background:#f7f7f6;padding:7px 9px;border-radius:6px;font-size:11.5px}
+  .pop ol{margin:0;padding-left:16px}
+  .pop .pen b{color:#9a6a09}
+  .pop a.go{display:block;margin-top:11px;padding:9px;text-align:center;background:#1a6fd4;
+    color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600}
+  .pop a.mp{display:block;margin-top:5px;text-align:center;font-size:11px;color:#9a9ea6}
+
+  /* ---- 收起 / 唤出 ---- */
+  #close{position:absolute;top:8px;right:10px;width:30px;height:30px;border:0;
+    background:transparent;font-size:23px;line-height:1;color:#b0b3b8;cursor:pointer;
+    -webkit-tap-highlight-color:transparent}
+  #fab{display:none;position:fixed;top:10px;right:10px;z-index:1200;
+    background:#fff;border:1px solid #dcdfe4;border-radius:20px;
+    box-shadow:0 3px 14px rgba(0,0,0,.24);padding:9px 16px;
+    font:inherit;font-size:13px;color:#222;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  #fab b{color:#1a6fd4}
+  #fab.show{display:block}
+
+  /* ---- 窄屏（手机）：面板变底部抽屉，默认收起，地图完整可见 ---- */
+  @media (max-width: 700px){
+    .panel{
+      top:auto;left:0;right:0;bottom:0;width:auto;border-radius:16px 16px 0 0;
+      padding:14px 16px calc(16px + env(safe-area-inset-bottom));
+      box-shadow:0 -3px 18px rgba(0,0,0,.3);font-size:15px;
+      max-height:76vh;transform:translateY(102%);transition:transform .22s ease;display:block}
+    .panel.hide{display:block}
+    .panel.open{transform:translateY(0)}
+    .panel h1{font-size:17px}
+    #fab{top:auto;bottom:calc(14px + env(safe-area-inset-bottom));left:50%;right:auto;
+      transform:translateX(-50%);border-radius:22px;padding:10px 18px;font-size:14px}
+    .tabs button{font-size:14px;padding:8px}
+    .row{padding:7px 0;gap:9px;font-size:14px}
+    .row input[type=checkbox]{width:19px;height:19px}
+    .dot{width:14px;height:14px}
+    #tows{max-height:190px}
+    .chips button{font-size:13px;padding:7px 12px}
+    select,input[type=search]{font-size:15px;padding:9px 10px}
+    #list{margin:0 -16px}
+    .item{padding:10px 16px}
+    .item .t{font-size:14px}
+    .item .m{font-size:12.5px}
+    .note{font-size:12px}
+    .leaflet-popup-content{width:min(78vw,300px)!important;max-height:46vh;font-size:14px}
+    .pop h3{font-size:14.5px}
+    .pop a.go{padding:11px;font-size:14.5px}
+    .leaflet-control-zoom{display:none}   /* 手机双指缩放，省地方 */
+  }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<button id="fab">筛选 · <b id="fab-count">…</b> 单</button>
+
+<div class="panel" id="panel">
+  <button id="close" aria-label="收起">&times;</button>
+  <h1>湾区零工地图</h1>
+  <a class="nav" href="./">← 换到湾区租房地图</a>
+  <div class="kpis">
+    <div class="kpi"><b id="kN">…</b><span>可见工单</span></div>
+    <div class="kpi"><b id="kNet">…</b><span>报酬中位</span></div>
+    <div class="kpi"><b id="kEff">…</b><span>时薪中位</span></div>
+  </div>
+
+  <div class="tabs">
+    <button data-tab="f" class="on">筛选</button>
+    <button data-tab="l">列表</button>
+  </div>
+
+  <div id="tab-f">
+    <input type="search" id="q" placeholder="搜标题 / 技能 / 城市 / 正文">
+    <div style="margin-top:10px">
+      <div class="slabel"><span>最低报酬</span><b id="pLbl">$0</b></div>
+      <input type="range" id="pay" min="0" max="1000" step="25" value="0">
+    </div>
+    <h2>排序</h2>
+    <select id="sort">
+      <option value="e">折合时薪（报酬 ÷ 预估工时）</option>
+      <option value="n">单笔报酬</option>
+      <option value="r">标称时薪</option>
+      <option value="sd">开工日期最近</option>
+      <option value="q">申请人数最少</option>
+    </select>
+    <h2>计价方式</h2>
+    <div class="chips" id="ptypes"></div>
+    <label class="row" style="margin-top:9px">
+      <input type="checkbox" id="view"><span class="nm">只看当前地图范围内</span></label>
+    <label class="row">
+      <input type="checkbox" id="dedup"><span class="nm">折叠重复批量单（同标题同甲方留一单）</span></label>
+
+    <h2>报酬分级（圆点大小 / 颜色）</h2>
+    <div id="legend"></div>
+
+    <h2>工种</h2>
+    <div id="tows"></div>
+    <div class="btnrow">
+      <button id="all">全选</button><button id="none">全不选</button>
+      <button id="mine">弱电三件套</button><button id="fit">缩放到全部结果</button>
+    </div>
+
+    <div class="note">
+      共 <b id="total">…</b> 个可用工单，来自 Field Nation 现场服务平台，覆盖加州及邻近各州。<br>
+      <b>报酬</b>是扣除平台服务费后的上限；<b>折合时薪</b> = 报酬 ÷ 预估工时，<b>不含路上时间</b> —— 跑远单的实际时薪会明显低于这个数。<br>
+      圆点位置按邮编质心定位（接单前平台不公开门牌号），同邮编的多单已散开。<br>
+      数据快照：<b id="updated">…</b>。工单周转很快，点进原页面才是准的。
+    </div>
+  </div>
+
+  <div id="tab-l"><div id="list"></div></div>
+</div>
+
+<script>
+const Q  = ['#86b6ef','#5598e7','#2a78d6','#1c5cab','#104281'];
+const QL = ['< $120','$120–180','$180–350','$350–600','≥ $600'];
+const BIN = [120,180,350,600];
+const C3 = ['#2a78d6','#eb6834','#1baf7a'];
+const PHONE = () => window.matchMedia('(max-width: 700px)').matches;
+const RAD = PHONE() ? [6.5,8,9.5,11,13] : [5.5,7,8.5,10,12];
+const MINE = ['Low Voltage Cabling','Structured Cabling','CCTV / Alarm Systems'];
+const PT = ['hourly','blended','fixed','device'];
+const PTL = {hourly:'按小时',blended:'打包+追加',fixed:'一口价',device:'按台数'};
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g,
+  c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const $ = id => document.getElementById(id);
+const money = v => v==null?'—':'$'+Math.round(v).toLocaleString();
+const med = a => {const s=a.filter(x=>x!=null).sort((x,y)=>x-y); if(!s.length)return null;
+  const m=s.length>>1; return s.length%2?s[m]:(s[m-1]+s[m])/2;};
+
+const map = L.map('map').setView([37.55,-122.1], PHONE()?8:9);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  {maxZoom:18, attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
+const layer = L.layerGroup().addTo(map);
+
+let ROWS=[], TOWS=[], DET=null, marks=new Map(), lastVis=[];
+const selTow=new Set(), selPt=new Set(PT);
+let minPay=0, kw='', sortBy='e', dedup=false, onlyView=false;
+
+function binOf(v){ v=v||0; return BIN.filter(b=>v>=b).length; }
+function act(){ return TOWS.filter(t=>selTow.has(t)); }
+function colorOf(r,a){ if(a.length&&a.length<=3){const i=a.indexOf(r.w); if(i>=0)return C3[i];}
+  return Q[r.b]; }
+function filtered(){
+  const b = onlyView ? map.getBounds() : null;
+  let v = ROWS.filter(r => selTow.has(r.w) && selPt.has(r.p) && (r.n||0)>=minPay &&
+    (!kw || r._s.includes(kw) || (DET && DET[r.i] &&
+       (DET[r.i].d.toLowerCase().includes(kw) || DET[r.i].k.join(' ').toLowerCase().includes(kw)))) &&
+    (!b || b.contains([r.la,r.lo])));
+  if(dedup){ const best=new Map();
+    v.forEach(r=>{const k=r.t+'|'+r.cid; const p=best.get(k); if(!p||(r.e||0)>(p.e||0)) best.set(k,r);});
+    v=[...best.values()]; }
+  const cmp={e:(a,c)=>(c.e||0)-(a.e||0), n:(a,c)=>(c.n||0)-(a.n||0), r:(a,c)=>(c.r||0)-(a.r||0),
+    sd:(a,c)=>(a.sd||'z').localeCompare(c.sd||'z'), q:(a,c)=>(a.q??1e9)-(c.q??1e9)};
+  return v.sort(cmp[sortBy]);
+}
+function popupHTML(r){
+  const d = DET && DET[r.i];
+  const bg=[`<span class="bg">${PTL[r.p]||esc(r.p)}</span>`];
+  if(r.hs) bg.push('<span class="bg w">硬性到场时间</span>');
+  if(r.lt) bg.push(`<span class="bg">${esc(r.lt)}</span>`);
+  if(d && d.p.length) bg.push(`<span class="bg w">扣款条款 ${d.p.length} 条</span>`);
+  let rows=`<tr><td>报酬上限（扣费后）</td><td class="v">${money(r.n)}</td></tr>`;
+  if(r.p==='hourly')  rows+=`<tr><td>时薪 × 封顶工时</td><td class="v">$${r.r} × ${r.bu}h</td></tr>`;
+  if(r.p==='blended') rows+=`<tr><td>打包 / 追加</td><td class="v">$${r.r} 含 ${r.bu}h ＋ $${r.aa}×${r.au}h</td></tr>`;
+  if(r.p==='device')  rows+=`<tr><td>每台 × 台数</td><td class="v">$${r.r} × ${r.bu}</td></tr>`;
+  rows+=`<tr><td>折合时薪（不含路程）</td><td class="v">${r.e?'$'+r.e+'/h':'—'}</td></tr>`;
+  return `<div class="pop">
+    <h3>${esc(r.t)}</h3><div class="bgs">${bg.join('')}</div>
+    <table>${rows}</table>
+    <dl>
+      <dt>地点 / 时间</dt>
+      <dd>${esc(r.c||'远程')}${r.s?', '+esc(r.s):''} ${esc(r.z)}<br>
+        ${esc(r.sd)} ${esc(r.st)}${r.ed?' → '+esc(r.ed):''} · 预估 ${r.h}h<br>
+        ${esc(r.w)} · 已申请 ${r.q??'—'} 人</dd>
+      <dt>甲方（平台隐藏名称）</dt>
+      <dd>#${r.cid??'—'}${r.bs!=null?' · '+r.bs+' 星':''}${r.bn?'（'+r.bn+' 条评价）':''}${r.bd!=null?' · 验收约 '+r.bd+' 天':''}</dd>
+      <dt>技能标签</dt><dd>${r.sk.length?esc(r.sk.join(' · ')):'—'}</dd>
+      ${d?`<dt>资质要求</dt><dd>${d.q.length?d.q.map(esc).join('<br>'):'—'}</dd>
+      ${d.p.length?`<dt>扣款条款</dt><dd>${d.p.map(p=>
+        `<div class="pen"><b>${p[1]?'-'+p[1]+'%':''}</b> ${esc(p[0])}</div>`).join('')}</dd>`:''}
+      <dt>任务清单（${d.k.length} 项）</dt><dd class="sc"><ol>${d.k.map(x=>`<li>${esc(x)}</li>`).join('')}</ol></dd>
+      <dt>工作内容</dt><dd class="sc">${esc(d.d||'—')}</dd>`
+      :`<dt>详情</dt><dd style="color:#a3a7ae">加载中…（首次打开约需几秒）</dd>`}
+    </dl>
+    <a class="go" href="https://app.fieldnation.com/workorders/${r.i}" target="_blank"
+       rel="noopener" data-wo="${r.i}">在 Field Nation 打开这单 →</a>
+    ${d&&d.m?`<a class="mp" href="${esc(d.m)}" target="_blank" rel="noopener">在 Google 地图看这个邮编 ↗</a>`:''}
+  </div>`;
+}
+function render(fit){
+  const a=act(), vis=filtered(); lastVis=vis;
+  layer.clearLayers(); marks.clear();
+  const pts=[];
+  vis.forEach(r=>{
+    const m=L.circleMarker([r.la,r.lo],{radius:RAD[r.b],fillColor:colorOf(r,a),
+      fillOpacity:.85,color:'rgba(0,0,0,.35)',weight:1});
+    m.bindPopup(()=>popupHTML(r),{maxWidth:328,autoPanPadding:[16,PHONE()?70:60],keepInView:true});
+    m.on('popupopen',()=>track('open_gig',{tow:r.w,pay:Math.round(r.n||0),city:r.c||''}));
+    m.addTo(layer); marks.set(r.i,m); pts.push([r.la,r.lo]);
+  });
+  $('kN').textContent=vis.length; $('fab-count').textContent=vis.length;
+  $('kNet').textContent=money(med(vis.map(r=>r.n)));
+  const e=med(vis.map(r=>r.e)); $('kEff').textContent=e?'$'+e.toFixed(0):'—';
+  const cap=vis.slice(0,80);
+  $('list').innerHTML = cap.map(r=>`<div class="item" data-id="${r.i}">
+      <span class="dot" style="background:${colorOf(r,a)};margin-top:4px"></span>
+      <div style="min-width:0">
+        <p class="t">${esc(r.t)}</p>
+        <p class="m"><span class="p">${money(r.n)}</span> · ${r.e?'$'+r.e+'/h':'—'} · ${PTL[r.p]||''}<br>
+          ${esc(r.c)}, ${esc(r.s)} · ${esc(r.sd)} · ${esc(r.w)}</p>
+      </div></div>`).join('')
+    + (vis.length>cap.length?`<div class="more">另有 ${vis.length-cap.length} 单在地图上，收紧筛选可在此列出。</div>`:'')
+    + (vis.length?'':'<div class="more">没有符合条件的工单，放宽筛选试试。</div>');
+  document.querySelectorAll('.item').forEach(el=>el.onclick=()=>{
+    const m=marks.get(el.dataset.id);
+    if(PHONE()) closePanel();
+    map.setView(m.getLatLng(),Math.max(map.getZoom(),11),{animate:true}); m.openPopup();});
+  document.querySelectorAll('#tows .dot').forEach(d=>{
+    const t=d.dataset.tow, on=selTow.has(t), i=a.indexOf(t);
+    d.style.background = on?((a.length&&a.length<=3&&i>=0)?C3[i]:'#9a988f'):'transparent';
+    d.style.boxShadow = on?'none':'inset 0 0 0 1.5px #d5d7db';});
+  if(fit&&pts.length) map.fitBounds(pts,{padding:[30,30],maxZoom:11});
+}
+function closePanel(){ $('panel').classList.remove('open');
+  if(PHONE()){ $('panel').classList.add('hide'); } $('fab').classList.add('show'); }
+function openPanel(){ $('panel').classList.remove('hide'); $('fab').classList.remove('show');
+  if(PHONE()) requestAnimationFrame(()=>$('panel').classList.add('open')); }
+
+$('close').onclick = closePanel;
+$('fab').onclick = openPanel;
+map.on('click', ()=>{ if(PHONE()) closePanel(); });
+map.on('movestart', ()=>{ if(PHONE()) closePanel(); });
+map.on('moveend', ()=>{ if(onlyView) render(); });
+window.addEventListener('resize',()=>{ if(!PHONE()&&!$('panel').classList.contains('hide'))
+  $('fab').classList.remove('show'); });
+
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x===b));
+  $('tab-f').style.display = b.dataset.tab==='f'?'block':'none';
+  $('tab-l').style.display = b.dataset.tab==='l'?'block':'none';
+  $('panel').scrollTop=0; track('gig_tab',{tab:b.dataset.tab});});
+$('pay').oninput=e=>{minPay=+e.target.value; $('pLbl').textContent='$'+minPay; render();};
+$('sort').onchange=e=>{sortBy=e.target.value; render(); track('gig_sort',{by:sortBy});};
+$('dedup').onchange=e=>{dedup=e.target.checked; render();};
+$('view').onchange=e=>{onlyView=e.target.checked; render();};
+$('fit').onclick=()=>render(true);
+let tm=null; $('q').oninput=e=>{clearTimeout(tm);
+  tm=setTimeout(()=>{kw=e.target.value.trim().toLowerCase(); render();
+    if(kw) track('gig_search',{q:kw.slice(0,40)});},250);};
+document.addEventListener('click',e=>{
+  const a=e.target.closest&&e.target.closest('a.go');
+  if(a) track('click_workorder',{id:a.dataset.wo});});
+
+$('legend').innerHTML = Q.map((c,i)=>`<div class="legrow"><span class="dot"
+  style="width:${RAD[i]*2}px;height:${RAD[i]*2}px;background:${c}"></span><span>${QL[i]}</span></div>`).join('');
+
+if(PHONE()) closePanel();
+
+fetch('gigs.json?t='+Date.now()).then(r=>r.json()).then(data=>{
+  ROWS = data.rows; TOWS = data.meta.tows; TOWS.forEach(t=>selTow.add(t));
+  ROWS.forEach(r=>{ r.b=binOf(r.n);
+    r._s=(r.t+' '+r.sk.join(' ')+' '+r.w+' '+r.c+' '+r.s+' '+r.z).toLowerCase(); });
+  $('total').textContent = data.meta.total;
+  $('updated').textContent = data.meta.updated;
+  const cnt={}; ROWS.forEach(r=>cnt[r.w]=(cnt[r.w]||0)+1);
+  $('tows').innerHTML = TOWS.map(t=>`<label class="row"><input type="checkbox" data-tow="${esc(t)}" checked>
+    <span class="dot" data-tow="${esc(t)}"></span><span class="nm">${esc(t)}</span>
+    <span class="cnt">${cnt[t]}</span></label>`).join('');
+  document.querySelectorAll('#tows input').forEach(cb=>cb.onchange=()=>{
+    cb.checked?selTow.add(cb.dataset.tow):selTow.delete(cb.dataset.tow); render();
+    track('gig_filter_tow',{tow:cb.dataset.tow,checked:cb.checked});});
+  function setTows(l){document.querySelectorAll('#tows input').forEach(cb=>{
+    const on=l.includes(cb.dataset.tow); cb.checked=on;
+    on?selTow.add(cb.dataset.tow):selTow.delete(cb.dataset.tow);}); render(true);}
+  $('all').onclick=()=>setTows(TOWS); $('none').onclick=()=>setTows([]);
+  $('mine').onclick=()=>{setTows(MINE); track('gig_preset',{p:'lowvoltage'});};
+  const ptc={}; ROWS.forEach(r=>ptc[r.p]=(ptc[r.p]||0)+1);
+  $('ptypes').innerHTML = PT.map(p=>`<button class="on" data-pt="${p}">${PTL[p]} ${ptc[p]||0}</button>`).join('');
+  document.querySelectorAll('#ptypes button').forEach(b=>b.onclick=()=>{
+    const p=b.dataset.pt; selPt.has(p)?selPt.delete(p):selPt.add(p);
+    b.classList.toggle('on',selPt.has(p)); render();});
+  render(false);
+  // 详情在后台补，不挡地图先出来
+  fetch('gigs-detail.json?t='+Date.now()).then(r=>r.json()).then(d=>{
+    DET=d; const p=$('q'); p.placeholder='搜标题 / 技能 / 城市 / 任务 / 正文全文';
+    const open=document.querySelector('.leaflet-popup'); if(open) map.closePopup();
+  }).catch(()=>{});
+}).catch(()=>{ $('total').textContent='加载失败'; $('updated').textContent='数据加载失败'; });
+</script>
+</body>
+</html>
